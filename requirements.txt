@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Nexus — dependency list
+# Install with:  pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+
+# --- Document parsing ---
+pymupdf          # PDF text + image extraction  (import as: fitz)
+python-docx      # .docx parsing
+python-pptx      # .pptx parsing
+openpyxl         # .xlsx reading
+pandas           # tabular data manipulation
+
+# --- OCR / image handling ---
+pytesseract      # Tesseract OCR Python wrapper (requires Tesseract installed on OS)
+pillow           # Image loading and pre-processing
+
+# --- Vector store ---
+chromadb         # Local persistent vector database
+
+# --- Embeddings + LLM (via local Ollama) ---
+ollama           # Ollama Python SDK
+
+# --- UI ---
+streamlit        # Web-based frontend
+
+# --- File-system monitoring ---
+watchdog         # Watch folders for new/modified files
+
+# --- Keyword search fallback ---
+rank-bm25        # Fast BM25 keyword search index
+

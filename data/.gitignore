@@ -1,0 +1,3 @@
+# Ignore ChromaDB persistence data and SQLite database — never commit these.
+chroma/
+metadata.db
