@@ -345,11 +345,17 @@ def search(
             log.warning("ChromaDB query error: %s", exc)
 
     # ── 5b. BM25 Keyword Search Fallback ────────────────────────────────────
+    # When dense embedding failed entirely, run BM25 over ALL chunks so the
+    # user always gets results (Ollama may be starting up or model not loaded).
     if conn:
         try:
             bm25_searcher = BM25Searcher(conn)
+            # pending_only=False when embedding failed so we search everything
             bm25_results = bm25_searcher.search(
-                query, top_k=top_k * 2, file_type_filter=file_type_filter
+                query,
+                top_k=top_k * 2,
+                file_type_filter=file_type_filter,
+                pending_only=(query_embedding is not None),  # full corpus fallback when embed failed
             )
 
             for b_res in bm25_results:

@@ -14,6 +14,7 @@ import os
 import platform
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 
@@ -42,54 +43,321 @@ st.set_page_config(
 )
 
 # ===========================================================================
-# Minimal custom CSS — readable, clean, no heavy theming
+# Rich Animated CSS — Colour-guaranteed, overrides Streamlit theme layer
 # ===========================================================================
-st.markdown(
-    """
-    <style>
-    /* Result cards */
-    .result-card {
-        background: var(--secondary-background-color);
-        border: 1px solid var(--secondary-background-color);
-        border-radius: 10px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1rem;
-    }
-    /* File-type badges */
-    .badge {
-        display: inline-block;
-        padding: 2px 10px;
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        margin-bottom: 0.4rem;
-        margin-right: 0.25rem;
-    }
-    .badge-pdf   { background:#ffdddd; color:#b00020; }
-    .badge-docx  { background:#dde8ff; color:#1a4fa0; }
-    .badge-xlsx  { background:#d9f0dd; color:#1a6b30; }
-    .badge-pptx  { background:#fff0dd; color:#b05a00; }
-    .badge-image { background:#ede0ff; color:#5a00a0; }
-    .badge-code  { background:#e0f7f4; color:#006b5a; }
-    .badge-other { background:#eeeeee; color:#555555; }
-    .badge-bm25  { background:#fff3cd; color:#856404; border:1px solid #ffeeba; }
-    /* Path text */
-    .file-path   { font-size: 0.78rem; color: #888; word-break: break-all; }
-    /* Score bar container */
-    .score-row   { display:flex; align-items:center; gap:0.75rem; margin:0.5rem 0; }
-    .score-bar   { flex:1; height:6px; background:#e0e0e0; border-radius:3px; overflow:hidden; }
-    .score-fill  { height:100%; border-radius:3px;
-                   background: linear-gradient(90deg, #4f8ef7, #a855f7); }
-    .score-pct   { font-size:0.82rem; font-weight:600; color:#555; min-width:40px; }
-    /* Section labels */
-    .label { font-size:0.75rem; font-weight:700; text-transform:uppercase;
-             letter-spacing:0.06em; color:#888; margin-top:0.6rem; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+_CSS = """<style>
+/* ── Sidebar-specific overrides ───────────────────────────────────────────── */
+section[data-testid="stSidebar"] code {
+    background: rgba(255,255,255,0.1) !important;
+    color: #c7d2fe !important;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.75rem;
+}
+section[data-testid="stSidebar"] .stCaption,
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
+    color: rgba(255,255,255,0.5) !important;
+}
+section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]) {
+    background: rgba(255,255,255,0.08) !important;
+    color: #e2e8f0 !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
+}
+section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]):hover {
+    background: rgba(255,255,255,0.15) !important;
+    border-color: rgba(165,180,252,0.5) !important;
+}
+section[data-testid="stSidebar"] .stExpander {
+    border-color: rgba(255,255,255,0.15) !important;
+    background: rgba(255,255,255,0.05) !important;
+}
+section[data-testid="stSidebar"] .stExpander summary {
+    color: #e2e8f0 !important;
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root {
+    --indigo:    #6366f1;
+    --indigo-d:  #4338ca;
+    --violet:    #8b5cf6;
+    --rose:      #f43f5e;
+    --teal:      #0d9488;
+    --teal-l:    #14b8a6;
+    --amber:     #f59e0b;
+    --slate-900: #0f172a;
+    --slate-700: #334155;
+    --slate-500: #64748b;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --slate-50:  #f8fafc;
+    --card-bg:   #ffffff;
+}
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+.stApp { background-color: #ffffff !important; }
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%) !important;
+}
+section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+section[data-testid="stSidebar"] .stMarkdown h3,
+section[data-testid="stSidebar"] .stMarkdown p { color: #ffffff !important; }
+section[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
+section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+    color: #a5b4fc !important; font-size: 1.6rem !important; font-weight: 800 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+    color: rgba(255,255,255,0.55) !important; font-size: 0.7rem !important;
+    text-transform: uppercase !important; letter-spacing: 0.06em !important;
+}
+@keyframes scan-line {
+    0%   { transform: translateY(-100%); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(3000%); opacity: 0; }
+}
+@keyframes pulse-ring {
+    0%   { transform: translate(-50%,-50%) scale(0.85); opacity: 0.9; }
+    50%  { transform: translate(-50%,-50%) scale(1.15); opacity: 0.3; }
+    100% { transform: translate(-50%,-50%) scale(0.85); opacity: 0.9; }
+}
+@keyframes orbit {
+    0%   { transform: rotate(0deg)   translateX(30px) rotate(0deg); }
+    100% { transform: rotate(360deg) translateX(30px) rotate(-360deg); }
+}
+@keyframes shimmer {
+    0%   { background-position: -600px 0; }
+    100% { background-position: 600px 0; }
+}
+@keyframes gradient-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+@keyframes float-dot {
+    0%, 100% { transform: translateY(0px) scale(1); opacity: 0.18; }
+    50%       { transform: translateY(-10px) scale(1.05); opacity: 0.28; }
+}
+@keyframes bar-grow {
+    0%   { width: 0%; }
+    100% { width: var(--bar-width, 0%); }
+}
+@keyframes fade-up {
+    0%   { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 15px rgba(99,102,241,0.5); }
+    50%       { box-shadow: 0 0 30px rgba(99,102,241,0.85), 0 0 60px rgba(139,92,246,0.3); }
+}
+.nexus-hero {
+    position: relative;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #134e4a 100%);
+    background-size: 300% 300%;
+    animation: gradient-shift 10s ease infinite;
+    border-radius: 18px;
+    padding: 2.75rem 2.25rem 2.25rem 2.25rem;
+    margin-bottom: 1.75rem;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(99,102,241,0.2), 0 4px 16px rgba(0,0,0,0.15);
+}
+.nexus-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6, #f43f5e, #f59e0b, #14b8a6, #6366f1);
+    background-size: 300% 100%;
+    animation: shimmer 4s linear infinite;
+    z-index: 2;
+}
+.nexus-hero::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, rgba(165,180,252,0.8) 50%, transparent 100%);
+    animation: scan-line 5s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 3;
+}
+.nexus-hero-title {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    margin: 0 0 0.4rem 0;
+    background: linear-gradient(90deg, #ffffff 0%, #a5b4fc 40%, #5eead4 80%, #fbbf24 100%);
+    background-size: 200% 100%;
+    animation: shimmer 6s linear infinite;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+}
+.nexus-hero-sub {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.62);
+    margin: 0;
+    font-weight: 400;
+}
+.nexus-hero-chips {
+    margin-top: 1.1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.nexus-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(4px);
+}
+.search-orb-wrapper {
+    position: absolute;
+    right: 2.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 90px;
+    height: 90px;
+}
+.search-orb-core {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #c7d2fe, #6366f1);
+    transform: translate(-50%, -50%);
+    animation: pulse-ring 2.5s ease-in-out infinite, glow-pulse 3s ease-in-out infinite;
+}
+.search-orb-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 78px; height: 78px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(99,102,241,0.3);
+    transform: translate(-50%, -50%);
+}
+.search-orb-ring2 {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    border: 1px dashed rgba(20,184,166,0.35);
+    transform: translate(-50%, -50%);
+    animation: orbit 8s linear infinite reverse;
+}
+.search-orb-dot {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin: -3.5px;
+    background: var(--teal-l);
+    box-shadow: 0 0 8px var(--teal-l);
+    animation: orbit 3.2s linear infinite;
+}
+.search-orb-dot:nth-child(4) { animation-delay: -1.07s; background: #a5b4fc; box-shadow: 0 0 8px #a5b4fc; }
+.search-orb-dot:nth-child(5) { animation-delay: -2.13s; background: #f0abfc; box-shadow: 0 0 8px #f0abfc; }
+.float-dot {
+    position: absolute;
+    border-radius: 50%;
+    animation: float-dot 3s ease-in-out infinite;
+    filter: blur(2px);
+}
+.block-container {
+    padding-top: 1.5rem !important;
+    padding-bottom: 3rem !important;
+    max-width: 1100px !important;
+}
+.result-card {
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 1.35rem 1.6rem !important;
+    margin-bottom: 1.1rem !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    animation: fade-up 0.35s ease both;
+    position: relative;
+    overflow: hidden;
+}
+.result-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--indigo), var(--teal-l));
+    border-radius: 3px 0 0 3px;
+    opacity: 0;
+    transition: opacity 0.22s ease;
+}
+.result-card:hover {
+    border-color: #a5b4fc !important;
+    box-shadow: 0 8px 32px rgba(99,102,241,0.13) !important;
+    transform: translateY(-2px);
+}
+.result-card:hover::before { opacity: 1; }
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+    margin-right: 0.35rem;
+    border: 1.5px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.badge:hover { transform: scale(1.07); box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.badge-pdf   { background: #fef2f2; color: #be123c !important; border-color: #fecaca; }
+.badge-docx  { background: #eff6ff; color: #1d4ed8 !important; border-color: #bfdbfe; }
+.badge-xlsx  { background: #f0fdf4; color: #15803d !important; border-color: #86efac; }
+.badge-pptx  { background: #fff7ed; color: #c2410c !important; border-color: #fdba74; }
+.badge-image { background: #fdf4ff; color: #7e22ce !important; border-color: #d8b4fe; }
+.badge-code  { background: #f0fdfa; color: #0f766e !important; border-color: #5eead4; }
+.badge-other { background: #f8fafc; color: #475569 !important; border-color: #cbd5e1; }
+.badge-bm25  { background: #fffbeb; color: #92400e !important; border-color: #fcd34d; }
+.file-path {
+    font-size: 0.74rem;
+    font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
+    color: #64748b !important;
+    word-break: break-all;
+    margin: 0.15rem 0 0.5rem 0;
+}
+.score-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.4rem 0 0.9rem 0; }
+.score-bar { flex: 1; height: 7px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+.score-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 40%, #14b8a6 80%, #6366f1 100%);
+    background-size: 300% 100%;
+    animation: shimmer 3s linear infinite, bar-grow 0.9s cubic-bezier(.2,.8,.4,1) both;
+    width: var(--bar-width, 0%);
+}
+.score-pct {
+    font-size: 0.8rem; font-weight: 800; color: #6366f1 !important;
+    min-width: 46px; font-family: ui-monospace, monospace;
+}
+.label {
+    font-size: 0.67rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.09em; color: #64748b !important;
+    margin-top: 0.85rem; margin-bottom: 0.25rem;
+}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+</style>"""
+st.markdown(_CSS, unsafe_allow_html=True)
+
 
 
 # ===========================================================================
@@ -129,26 +397,45 @@ def get_db_connection():
 # ===========================================================================
 
 def open_file(path: str) -> None:
-    """Open *path* in the OS default application, cross-platform."""
+    """Open *path* in the OS default application."""
     if not Path(path).exists():
         st.warning(
             f"⚠️ **File not found on disk.**  \n"
             f"`{path}`  \n"
-            f"The file may have been moved or deleted since it was indexed.  "
-            "Re-run **Reindex Now** to refresh the index."
+            "Re-run **Full Reindex** to refresh the index."
         )
         return
 
-    system = platform.system()
     try:
+        system = platform.system()
         if system == "Windows":
-            os.startfile(path)                          # type: ignore[attr-defined]
+            # subprocess.Popen with shell=True correctly launches the file
+            # in the user's desktop session (os.startfile fails inside Streamlit server)
+            subprocess.Popen(f'start "" "{path}"', shell=True)
         elif system == "Darwin":
-            subprocess.call(["open", path])
+            subprocess.Popen(["open", path])
         else:
-            subprocess.call(["xdg-open", path])
+            subprocess.Popen(["xdg-open", path])
     except Exception as exc:
         st.warning(f"Could not open file: {exc}")
+
+
+def open_folder(path: str) -> None:
+    """Reveal *path* in the OS file explorer (shows containing folder)."""
+    if not Path(path).exists():
+        st.warning(f"⚠️ File not found: `{path}`")
+        return
+    try:
+        system = platform.system()
+        if system == "Windows":
+            # /select highlights the specific file in Explorer
+            subprocess.Popen(f'explorer /select,"{path}"', shell=True)
+        elif system == "Darwin":
+            subprocess.Popen(["open", "-R", path])
+        else:
+            subprocess.Popen(["xdg-open", str(Path(path).parent)])
+    except Exception as exc:
+        st.warning(f"Could not open folder: {exc}")
 
 
 def _badge_html(file_type: str, is_bm25_fallback: bool = False) -> str:
@@ -163,7 +450,7 @@ def _score_bar_html(score: float) -> str:
     pct = score * 100
     return (
         f'<div class="score-row">'
-        f'  <div class="score-bar"><div class="score-fill" style="width:{pct:.1f}%"></div></div>'
+        f'  <div class="score-bar"><div class="score-fill" style="--bar-width:{pct:.1f}%; width:{pct:.1f}%"></div></div>'
         f'  <span class="score-pct">{pct:.1f}%</span>'
         f'</div>'
     )
@@ -207,7 +494,7 @@ def render_result_card(rank: int, result: dict) -> None:
 
         if path and not file_exists:
             st.warning(
-                "⚠️ This file no longer exists on disk and cannot be opened.  "
+                "This file no longer exists on disk and cannot be opened. "
                 "Re-run **Reindex Now** to update the index.",
                 icon=None,
             )
@@ -216,24 +503,54 @@ def render_result_card(rank: int, result: dict) -> None:
         with col_title:
             st.markdown(
                 f"{_badge_html(file_type, is_bm25_fallback)}"
-                f"<h4 style='margin:0.2rem 0 0 0'>#{rank} &nbsp; {filename}</h4>",
+                f"<h4 style='margin:0.25rem 0 0 0; font-size:1.05rem; font-weight:600; color:#0f172a;'>#{rank} &nbsp; {filename}</h4>",
                 unsafe_allow_html=True,
             )
             st.markdown(f'<p class="file-path">{path}</p>', unsafe_allow_html=True)
 
         with col_btn:
             st.write("")
-            open_disabled = not file_exists
-            open_help     = "Open in default app" if file_exists else "File no longer on disk"
-            if st.button(
-                "📂 Open",
-                key=f"open_{rank}_{path}",
-                help=open_help,
-                disabled=open_disabled,
-            ):
-                open_file(path)
+            if file_exists:
+                try:
+                    file_bytes = Path(path).read_bytes()
+                    _mime_map = {
+                        "pdf": "application/pdf",
+                        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "png": "image/png",
+                        "jpg": "image/jpeg",
+                        "jpeg": "image/jpeg",
+                        "py": "text/plain",
+                        "js": "text/plain",
+                        "ts": "text/plain",
+                        "java": "text/plain",
+                        "cpp": "text/plain",
+                        "c": "text/plain",
+                    }
+                    ext = Path(path).suffix.lstrip(".").lower()
+                    mime = _mime_map.get(ext, "application/octet-stream")
+                    st.download_button(
+                        label="Download / Open",
+                        data=file_bytes,
+                        file_name=filename,
+                        mime=mime,
+                        key=f"dl_{rank}_{path}",
+                        help="Downloads the file to open in your default application",
+                        use_container_width=True,
+                    )
+                except Exception as exc:
+                    st.warning(f"Cannot read file: {exc}")
+            else:
+                st.button(
+                    "Download / Open",
+                    key=f"dl_{rank}_{path}",
+                    disabled=True,
+                    help="File no longer on disk",
+                    use_container_width=True,
+                )
 
-        st.markdown('<p class="label">Relevance score</p>', unsafe_allow_html=True)
+        st.markdown('<p class="label">Relevance Score</p>', unsafe_allow_html=True)
         st.markdown(_score_bar_html(score), unsafe_allow_html=True)
 
         if expl:
@@ -241,11 +558,11 @@ def render_result_card(rank: int, result: dict) -> None:
             st.markdown(expl)
 
         if summ:
-            st.markdown('<p class="label">What it contains</p>', unsafe_allow_html=True)
+            st.markdown('<p class="label">Summary</p>', unsafe_allow_html=True)
             st.markdown(summ)
 
         if chunk:
-            with st.expander("Matched text snippet", expanded=False):
+            with st.expander("Matched snippet", expanded=False):
                 st.caption(chunk[:800])
 
         st.markdown("</div>", unsafe_allow_html=True)
@@ -257,35 +574,47 @@ def render_result_card(rank: int, result: dict) -> None:
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.title("🔍 Nexus")
-        st.caption("Local Semantic File Search (Two-Phase Indexing)")
+        st.markdown(
+            "<div style='margin-bottom: 1rem;'>"
+            "<h3 style='font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: #ffffff; margin: 0;'>NEXUS</h3>"
+            "<p style='font-size: 0.72rem; font-weight: 500; color: rgba(165,180,252,0.85); text-transform: uppercase; letter-spacing: 0.05em; margin: 0.1rem 0 0 0;'>Local Semantic Search</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
         st.divider()
 
-        st.subheader("📁 Indexed Folders")
+        st.markdown("<p class='label' style='margin-top:0;'>Indexed Folders</p>", unsafe_allow_html=True)
         if config.INDEX_FOLDERS:
             for folder in config.INDEX_FOLDERS:
                 exists = Path(folder).exists()
-                icon   = "✅" if exists else "⚠️"
-                st.markdown(f"{icon} `{folder}`")
+                status_icon = "✓" if exists else "✗"
+                dot_color = "#34d399" if exists else "#f87171"
+                st.markdown(
+                    f"<div style='display:flex;align-items:flex-start;gap:6px;margin:4px 0;'>"
+                    f"<span style='color:{dot_color};font-weight:700;font-size:0.85rem;margin-top:1px;flex-shrink:0;'>{status_icon}</span>"
+                    f"<span style='color:#c7d2fe;font-size:0.75rem;font-family:ui-monospace,monospace;word-break:break-all;'>{folder}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
         else:
             st.info("No folders configured. Edit `config.INDEX_FOLDERS` in **config.py**.")
 
-        st.caption("To add folders, edit `config.py` directly.")
+        st.caption("Edit `config.py` to add or remove folders.")
         st.divider()
 
         # ── Index stats ─────────────────────────────────────────────────────
         total, embedded, pending = _get_index_stats()
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Total files", total)
+            st.metric("Total Files", total)
         with col2:
             st.metric("Embedded", embedded)
         if pending > 0:
-            st.caption(f"⚡ **{pending} file(s)** ready for instant BM25 keyword search")
+            st.caption(f"⚡ **{pending} file(s)** indexed via keyword search (BM25)")
         st.divider()
 
         # ── Reindex button ──────────────────────────────────────────────────
-        st.subheader("⚙️ Indexing")
+        st.markdown("<p class='label' style='margin-top:0;'>Indexing Actions</p>", unsafe_allow_html=True)
 
         if not config.INDEX_FOLDERS:
             st.warning("Add folders to `config.INDEX_FOLDERS` before indexing.")
@@ -408,23 +737,47 @@ def _run_reindex(embed_only: bool = False) -> None:
 # ===========================================================================
 
 def render_main() -> None:
-    st.title("What file are you looking for?")
-    st.caption(
-        "Describe the content, topic, or ask a natural-language question. "
-        "Include words like _pdf_, _excel_, _code_, or _image_ to filter by file type."
+    hero_html = (
+        '<div class="nexus-hero">'
+        '<div class="float-dot" style="width:90px;height:90px;background:#6366f1;top:-20px;left:3%;animation-delay:0s;"></div>'
+        '<div class="float-dot" style="width:50px;height:50px;background:#14b8a6;top:55%;left:10%;animation-delay:0.8s;"></div>'
+        '<div class="float-dot" style="width:35px;height:35px;background:#8b5cf6;bottom:5%;left:28%;animation-delay:1.6s;"></div>'
+        '<div class="float-dot" style="width:20px;height:20px;background:#f43f5e;top:15%;left:45%;animation-delay:0.4s;"></div>'
+        '<div class="float-dot" style="width:25px;height:25px;background:#f59e0b;top:70%;left:55%;animation-delay:1.2s;"></div>'
+        '<div class="search-orb-wrapper">'
+        '<div class="search-orb-ring"></div>'
+        '<div class="search-orb-ring2"></div>'
+        '<div class="search-orb-core"></div>'
+        '<div class="search-orb-dot"></div>'
+        '<div class="search-orb-dot"></div>'
+        '<div class="search-orb-dot"></div>'
+        '</div>'
+        '<h2 class="nexus-hero-title">Semantic File Search</h2>'
+        '<p class="nexus-hero-sub">Search documents, spreadsheets, slides, PDFs, code, and images &mdash; in natural language.</p>'
+        '<div class="nexus-hero-chips">'
+        '<span class="nexus-chip">&#x1F4C4; PDF</span>'
+        '<span class="nexus-chip">&#x1F4DD; DOCX</span>'
+        '<span class="nexus-chip">&#x1F4CA; XLSX</span>'
+        '<span class="nexus-chip">&#x1F4F8; Images</span>'
+        '<span class="nexus-chip">&#x1F4BB; Code</span>'
+        '<span class="nexus-chip">&#x1F4D1; PPTX</span>'
+        '</div>'
+        '</div>'
     )
+    st.markdown(hero_html, unsafe_allow_html=True)
+
 
     col_input, col_btn = st.columns([5, 1])
     with col_input:
         query = st.text_input(
             "Search query",
-            placeholder="e.g.  quarterly revenue report   |   Python script for parsing JSON",
+            placeholder="e.g. quarterly revenue report, Python JSON parser, architecture diagram...",
             label_visibility="collapsed",
             key="search_query",
         )
     with col_btn:
         st.write("")
-        search_clicked = st.button("🔍 Search", type="primary", use_container_width=True)
+        search_clicked = st.button("Search", type="primary", use_container_width=True)
 
     should_search = search_clicked and bool(query)
 
@@ -441,8 +794,11 @@ def render_main() -> None:
         if "last_results" not in st.session_state:
             st.divider()
             st.markdown(
-                "### 👆 Enter a query above to start searching",
-                help="Type anything describing the file content you're looking for.",
+                "<div style='border: 1px dashed #cbd5e1; border-radius: 8px; padding: 2.5rem; text-align: center; background: #f8fafc; margin-top: 1.5rem;'>"
+                "<p style='font-size: 0.95rem; font-weight: 600; color: #334155; margin-bottom: 0.25rem;'>Ready to Search</p>"
+                "<p style='font-size: 0.82rem; color: #64748b; margin: 0;'>Enter any topic, keyword, or query in the box above to find matching files.</p>"
+                "</div>",
+                unsafe_allow_html=True,
             )
         else:
             _display_results(
@@ -453,7 +809,7 @@ def render_main() -> None:
         return
 
     # ── AI Explanation Option ──────────────────────────────────────────────
-    enable_ai = st.checkbox("🤖 Generate AI Explanations (Ollama LLM)", value=False, help="Uncheck for instant <0.1s search results")
+    enable_ai = st.checkbox("Generate AI Explanations (Ollama LLM)", value=False, help="Uncheck for instant search results")
 
     with st.spinner("Searching…"):
         file_type_filter = query_engine.detect_file_type_filter(query)
@@ -465,7 +821,7 @@ def render_main() -> None:
             )
         except RuntimeError as exc:
             st.error(
-                f"❌ **Search failed:** {exc}  \n\n"
+                f"Search failed: {exc}  \n\n"
                 "Make sure Ollama is running (`ollama serve`)."
             )
             return
@@ -487,17 +843,20 @@ def render_main() -> None:
 def _display_results(query: str, results: list[dict], file_type_filter: str | None) -> None:
     st.divider()
 
-    filter_label = f"  ·  filtered to **{file_type_filter}** files" if file_type_filter else ""
-    st.markdown(f"### Results for &ldquo;{query}&rdquo;{filter_label}")
+    filter_label = f" <span style='font-size: 0.8rem; font-weight: 500; color: #64748b;'>(filtered: {file_type_filter})</span>" if file_type_filter else ""
+    st.markdown(
+        f"<h3 style='font-size: 1.15rem; font-weight: 600; color: #0f172a; margin-bottom: 0.2rem;'>Results for &ldquo;{query}&rdquo;{filter_label}</h3>",
+        unsafe_allow_html=True,
+    )
 
     if not results:
         st.warning(
-            "🔍 **No matching files found.**  \n"
-            "Try rephrasing your search, using different keywords, or removing the file-type hint."
+            "No matching files found. "
+            "Try rephrasing your search or removing file-type keywords."
         )
         return
 
-    st.caption(f"{len(results)} file(s) matched · ranked by relevance")
+    st.caption(f"{len(results)} matching file(s) ranked by relevance")
     st.write("")
 
     for rank, result in enumerate(results, start=1):

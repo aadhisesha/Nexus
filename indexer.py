@@ -429,6 +429,18 @@ def run_phase_a(
             continue
         text = parsed_results.get(path, "")
         chunks = chunk_text(text) if text else []
+
+        # Synthetic fallback: if OCR/parser returned nothing (e.g. photo-only
+        # image), create a minimal chunk from filename+type so the file still
+        # appears in BM25 and semantic searches.
+        if not chunks:
+            chunks = [
+                f"File: {file_rec['filename']}  "
+                f"Type: {file_rec['file_type']}  "
+                f"Path: {path}"
+            ]
+            log.info("[Phase A] Synthetic chunk for '%s' (empty parse)", file_rec['filename'])
+
         file_chunks[path] = chunks
         _save_file_chunks(conn, path, chunks)
         _upsert_file_record(conn, file_rec, [], embedding_status="pending")
@@ -474,12 +486,17 @@ def run_phase_b(
         chunk_rows = _get_file_chunks(conn, path)
         chunks = [r["text"] for r in chunk_rows]
 
+        # If SQLite has no chunks (e.g. image files indexed before this fix),
+        # create a synthetic chunk so ChromaDB and BM25 can find the file.
         if not chunks:
-            _upsert_file_record(conn, file_rec, [], embedding_status="embedded")
-            embedded_count += 1
-            if progress_callback:
-                progress_callback(idx, total_pending, filename)
-            continue
+            fallback_text = (
+                f"File: {filename}  "
+                f"Type: {file_type}  "
+                f"Path: {path}"
+            )
+            chunks = [fallback_text]
+            _save_file_chunks(conn, path, chunks)
+            log.info("[Phase B] Synthetic chunk for '%s' (no chunks in SQLite)", filename)
 
         try:
             chunk_embeddings = embed_text_chunks(chunks)
